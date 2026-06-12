@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BIO 2026 파트너링 스케줄</title>
+<style>
+:root{
+  --bg:#FAF9F6; --bg-secondary:#F1EFE8; --bg-primary:#FFFFFF;
+  --text-primary:#2B2A28; --text-secondary:#6F6E69; --text-tertiary:#9C9A95;
+  --border-primary:#B4B2A9; --border-secondary:#D9D7CE; --border-tertiary:#E8E6DE;
+  --radius-md:8px; --radius-lg:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text-primary)}
+.app{max-width:900px;margin:0 auto;padding:1.5rem 1rem}
+.topbar{display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap}
+.topbar h2{font-size:18px;font-weight:600;color:var(--text-primary);flex:1}
+.sync-badge{font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:5px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#1D9E75}
+.sync-dot.syncing{background:#BA7517;animation:pulse 1s infinite}
+.sync-dot.error{background:#D85A30}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
+.stat{background:var(--bg-secondary);border-radius:var(--radius-md);padding:9px 12px}
+.stat-label{font-size:11px;color:var(--text-secondary);margin-bottom:2px}
+.stat-val{font-size:19px;font-weight:600;color:var(--text-primary)}
+.tab-bar{display:flex;gap:3px;background:var(--bg-secondary);border-radius:var(--radius-md);padding:3px;margin-bottom:1rem}
+.tab{padding:6px 12px;font-size:12px;border-radius:6px;border:none;background:transparent;color:var(--text-secondary);cursor:pointer}
+.tab.active{background:var(--bg-primary);color:var(--text-primary);font-weight:600;border:0.5px solid var(--border-tertiary)}
+.day-tabs{display:flex;gap:4px;margin-bottom:1rem;flex-wrap:wrap}
+.day-tab{padding:6px 16px;font-size:12px;border-radius:var(--radius-md);border:0.5px solid var(--border-secondary);background:var(--bg-primary);color:var(--text-secondary);cursor:pointer;font-weight:400}
+.day-tab.active{background:var(--text-primary);color:var(--bg-primary);border-color:var(--text-primary)}
+.timetable{display:flex;gap:0;border:0.5px solid var(--border-tertiary);border-radius:var(--radius-lg);overflow:hidden;background:var(--bg-primary)}
+.time-col{width:56px;flex-shrink:0;border-right:0.5px solid var(--border-tertiary)}
+.time-slot{height:60px;display:flex;align-items:flex-start;justify-content:flex-end;padding:4px 8px 0 0;font-size:10px;color:var(--text-tertiary);border-bottom:0.5px solid var(--border-tertiary)}
+.time-slot:last-child{border-bottom:none}
+.meetings-col{flex:1;position:relative;min-height:540px}
+.slot-line{height:60px;border-bottom:0.5px solid var(--border-tertiary);position:relative}
+.slot-line:last-child{border-bottom:none}
+.meeting-block{position:absolute;left:6px;right:6px;border-radius:6px;padding:5px 8px;cursor:pointer;transition:opacity 0.15s;overflow:hidden;z-index:10}
+.meeting-block:hover{opacity:0.85;z-index:20}
+.mb-korea{background:#E1F5EE;border:0.5px solid #5DCAA5}
+.mb-partner{background:#E6F1FB;border:0.5px solid #85B7EB}
+.mb-tbd{background:#F1EFE8;border:0.5px solid #B4B2A9}
+.mb-title{font-size:11px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mb-ko{font-size:10px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.mb-ko.has-confirmed{color:#085041;font-weight:600}
+.mb-time{font-size:9px;color:var(--text-tertiary);margin-top:1px}
+.legend{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary)}
+.legend-dot{width:10px;height:10px;border-radius:2px}
+.detail-panel{background:var(--bg-primary);border:0.5px solid var(--border-secondary);border-radius:var(--radius-lg);padding:16px;margin-top:12px;display:none}
+.detail-panel.open{display:block}
+.dp-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px}
+.dp-company{font-size:15px;font-weight:600;color:var(--text-primary);flex:1}
+.dp-close{background:none;border:none;cursor:pointer;font-size:18px;color:var(--text-secondary);line-height:1}
+.dp-meta{font-size:12px;color:var(--text-secondary);margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap}
+.sec-label{font-size:10px;font-weight:600;color:var(--text-secondary);letter-spacing:0.5px;text-transform:uppercase;margin:10px 0 6px}
+.ko-grid{display:flex;flex-direction:column;gap:4px}
+.ko-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;background:var(--bg-secondary);font-size:12px}
+.ko-name{flex:1;color:var(--text-primary);font-weight:600}
+.ko-sel{font-size:11px;padding:3px 6px;border-radius:4px;border:0.5px solid var(--border-secondary);background:var(--bg-primary);color:var(--text-primary);cursor:pointer}
+.ks-accepted{background:#E1F5EE;color:#085041}
+.ks-pending{background:#FAEEDA;color:#633806}
+.ks-declined{background:#FCEBEB;color:#A32D2D}
+.ks-tbd{background:#F1EFE8;color:#5F5E5A}
+.req-note{font-size:11px;color:var(--text-secondary);padding:5px 8px;background:var(--bg-secondary);border-radius:5px;margin-top:4px;line-height:1.5}
+.notes-box{width:100%;font-size:12px;padding:7px;border:0.5px solid var(--border-secondary);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);resize:vertical;min-height:48px;margin-top:4px;font-family:inherit}
+.paste-area{width:100%;font-size:11px;padding:8px;border:0.5px solid var(--border-secondary);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary);resize:vertical;min-height:100px;font-family:monospace}
+.parse-btn{margin-top:8px;font-size:12px;padding:6px 16px;border-radius:var(--radius-md);border:0.5px solid var(--border-secondary);background:var(--text-primary);color:var(--bg-primary);cursor:pointer}
+.parse-result{font-size:12px;margin-top:8px;padding:6px 10px;border-radius:var(--radius-md);background:var(--bg-secondary);color:var(--text-secondary)}
+.list-view{display:flex;flex-direction:column;gap:6px}
+.lv-card{background:var(--bg-primary);border:0.5px solid var(--border-tertiary);border-radius:var(--radius-lg);padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lv-card:hover{border-color:var(--border-secondary)}
+.lv-co{font-size:13px;font-weight:600;color:var(--text-primary);flex:1}
+.lv-time{font-size:11px;color:var(--text-secondary);white-space:nowrap}
+.lv-ko{font-size:11px;color:var(--text-secondary)}
+.lv-ko.has-confirmed{color:#085041;font-weight:600}
+.booth-badge{font-size:10px;padding:2px 7px;border-radius:4px;white-space:nowrap}
+.bb-korea{background:#E1F5EE;color:#085041}
+.bb-partner{background:#E6F1FB;color:#0C447C}
+.bb-tbd{background:#F1EFE8;color:#5F5E5A}
+.ko-view{display:flex;flex-direction:column;gap:6px}
+.ko-card{background:var(--bg-primary);border:0.5px solid var(--border-tertiary);border-radius:var(--radius-lg);padding:11px 14px}
+.ko-card-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.ko-card-name{font-size:13px;font-weight:600;color:var(--text-primary);flex:1}
+.ko-meeting-row{display:flex;align-items:center;gap:8px;font-size:11px;padding:3px 7px;background:var(--bg-secondary);border-radius:5px;margin-bottom:3px;flex-wrap:wrap}
+.km-time{color:var(--text-secondary);min-width:95px}
+.km-co{flex:1;color:var(--text-primary)}
+.ks-badge{font-size:10px;padding:2px 6px;border-radius:4px}
+.share-note{font-size:11px;color:var(--text-secondary);background:var(--bg-secondary);padding:8px 10px;border-radius:var(--radius-md);margin-bottom:10px;line-height:1.5}
+.empty-msg{text-align:center;padding:1.5rem;font-size:13px;color:var(--text-secondary)}
+.edit-form{display:none;margin-top:8px;padding:10px;background:var(--bg-secondary);border-radius:var(--radius-md)}
+.edit-form.open{display:block}
+.edit-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.edit-row label{font-size:10px;color:var(--text-secondary);display:block;margin-bottom:3px}
+.edit-row input,.edit-full input{width:100%;font-size:12px;padding:6px 8px;border:0.5px solid var(--border-secondary);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary)}
+.edit-full{margin-bottom:8px}
+.edit-full label{font-size:10px;color:var(--text-secondary);display:block;margin-bottom:3px}
+.edit-actions{display:flex;gap:6px;justify-content:flex-end}
+.edit-btn{font-size:11px;padding:5px 12px;border-radius:var(--radius-md);border:0.5px solid var(--border-secondary);background:var(--bg-primary);color:var(--text-primary);cursor:pointer}
+.edit-btn.primary{background:var(--text-primary);color:var(--bg-primary)}
+.reschedule-toggle{font-size:11px;padding:4px 10px;border-radius:var(--radius-md);border:0.5px solid var(--border-secondary);background:var(--bg-primary);color:var(--text-primary);cursor:pointer;margin-top:8px}
+@media (max-width:480px){
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+  .timetable{font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<div class="topbar">
+  <h2>BIO 2026 파트너링 스케줄</h2>
+  <span class="sync-badge" id="sync-badge"><span class="sync-dot" id="sync-dot"></span><span id="sync-text">연결 중...</span></span>
+</div>
+<div class="stats-row">
+  <div class="stat"><div class="stat-label">총 미팅</div><div class="stat-val" id="s-total">0</div></div>
+  <div class="stat"><div class="stat-label">한국기업 확정</div><div class="stat-val" id="s-acc" style="color:#1D9E75">0</div></div>
+  <div class="stat"><div class="stat-label">확인 중</div><div class="stat-val" id="s-pend" style="color:#BA7517">0</div></div>
+  <div class="stat"><div class="stat-label">매칭 없음</div><div class="stat-val" id="s-noko" style="color:#D85A30">0</div></div>
+</div>
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('timetable')">시간표</button>
+  <button class="tab" onclick="switchTab('list')">목록</button>
+  <button class="tab" onclick="switchTab('korean')">한국기업</button>
+  <button class="tab" onclick="switchTab('update')">데이터 업데이트</button>
+</div>
+
+<div id="view-timetable">
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#9FE1CB;border:0.5px solid #5DCAA5"></div>한국관</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#B5D4F4;border:0.5px solid #85B7EB"></div>상대방 부스</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#D3D1C7;border:0.5px solid #B4B2A9"></div>장소 미정</div>
+  </div>
+  <div class="day-tabs" id="day-tabs"></div>
+  <div class="timetable" id="timetable"></div>
+  <div class="detail-panel" id="detail-panel"></div>
+</div>
+
+<div id="view-list" style="display:none">
+  <div class="day-tabs" id="list-day-tabs"></div>
+  <div class="list-view" id="list-view"></div>
+  <div class="detail-panel" id="list-detail-panel"></div>
+</div>
+
+<div id="view-korean" style="display:none">
+  <div class="ko-view" id="ko-view"></div>
+</div>
+
+<div id="view-update" style="display:none">
+  <div class="share-note">이 화면에서 데이터를 업데이트하면 이 링크를 가진 모든 팀원에게 실시간으로 반영됩니다. 매일 저녁 구글 시트에서 아래 컬럼을 복사해 붙여넣으세요.</div>
+  <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6">
+    순서: <span style="font-family:monospace;font-size:11px;background:var(--bg-secondary);padding:2px 6px;border-radius:4px">기업명 · 미팅스케줄 · 담당자 · 찾는국내기업 · 국내1 · 국내2 · 국내3 · 국내4 · 국내5</span>
+  </div>
+  <textarea class="paste-area" id="paste-input" placeholder="여기에 시트 내용을 붙여넣으세요 (탭으로 구분된 형식)..."></textarea>
+  <button class="parse-btn" onclick="parseAndUpdate()">업데이트 적용 (전체 공유)</button>
+  <div id="parse-result"></div>
+
+  <div class="sec-label" style="margin-top:20px">엑셀로 내보내기</div>
+  <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;line-height:1.6">현재 상태(스케줄, 부스, 한국기업 매칭 및 확정 여부, 메모)를 CSV로 다운로드합니다. 엑셀에서 바로 열 수 있습니다.</div>
+  <button class="parse-btn" onclick="exportToCSV()" style="background:var(--bg-primary);color:var(--text-primary)">CSV 다운로드</button>
+</div>
+</div>
+
+<!-- Firebase (CDN, no build step needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBGUZYUG88D3xmQzoLDPBgDAaSagSHrm50",
+  authDomain: "bio-schedule.firebaseapp.com",
+  projectId: "bio-schedule",
+  storageBucket: "bio-schedule.firebasestorage.app",
+  messagingSenderId: "431021892440",
+  appId: "1:431021892440:web:173d0ac88042bb264d7b2d"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const docRef = db.collection('bio2026').doc('schedule');
+
+const KO_STATUS={accepted:'확정',pending:'확인 중',declined:'거절',tbd:'후보'};
+const TIMES=['9:00','9:30','10:00','10:30','11:00','11:30','12:00','12:30','1:00','1:30','2:00','2:30','3:00','3:30','4:00','4:30','5:00','5:30'];
+const TIME_START=9*60;
+const SLOT_H=60;
+
+let selectedDay='06/22';
+let selectedListDay='06/22';
+let selectedMeetingId=null;
+let currentTab='timetable';
+let koStatus={};
+let meetings=[];
+let isSaving=false;
+
+const DEFAULT_MEETINGS=[
+  {id:1,us_company:'Abbott Labs',country:'미국',manager:'',sched:{date:'06/25',time_start:'15:30',time_end:'16:00',location:'한국관',boothType:'korea'},requested_note:'',ko_candidates:['아이엠비디엑스','프로티나','에이슬립','알테오젠','뉴로핏'],notes:''},
+  {id:2,us_company:'MilliporeSigma',country:'독일',manager:'',sched:{date:'06/25',time_start:'14:30',time_end:'15:00',location:'한국관',boothType:'korea'},requested_note:'',ko_candidates:['엑셀세라퓨틱스','유바이오로직스','팬젠','지씨씨엘','알지노믹스'],notes:''},
+  {id:3,us_company:'Cytiva',country:'미국',manager:'Sean Muthian',sched:{date:'06/24',time_start:'13:00',time_end:'13:30',location:'EX-2027e (Cytiva)',boothType:'partner'},requested_note:'뉴욕무역관 투자팀: 한국 투자 관련 의향 타진',ko_candidates:['엑셀세라퓨틱스','유바이오로직스','팬젠','씨티셀즈','알지노믹스'],notes:''},
+  {id:4,us_company:'Kuraray America',country:'일본',manager:'',sched:{date:'06/25',time_start:'14:00',time_end:'14:30',location:'한국관',boothType:'korea'},requested_note:'XCELL, CTCELLS, ENPARTICLE, INTOCELL, RZNOMICS 요청',ko_candidates:['엑셀세라퓨틱스','씨티셀즈','엔파티클','인투셀','알지노믹스'],notes:''},
+  {id:5,us_company:'Pfizer Inc.',country:'미국',manager:'Marija Tadin-Strapps',sched:{date:'06/25',time_start:'13:00',time_end:'13:30',location:'한국관',boothType:'korea'},requested_note:'',ko_candidates:['알지노믹스','인투셀','이뮨온시아','아이엠비디엑스','알테오젠'],notes:''},
+  {id:6,us_company:'Adimab',country:'미국',manager:'Aaron Sato / Ross Connor',sched:{date:'06/23',time_start:'15:30',time_end:'16:00',location:'한국관',boothType:'korea'},requested_note:'',ko_candidates:['이뮨온시아','인투셀','알테오젠','팬젠','프로티나'],notes:''},
+  {id:7,us_company:'Cleveland Clinic',country:'미국',manager:'Joe Barone',sched:{date:'06/23',time_start:'15:00',time_end:'15:30',location:'한국관',boothType:'korea'},requested_note:'',ko_candidates:['뉴로핏','아이엠비디엑스','에이슬립','메디아이플러스','알지노믹스'],notes:''},
+  {id:8,us_company:'KBI Biopharma',country:'미국',manager:'Dennis Yoon',sched:{date:'06/25',time_start:'11:30',time_end:'12:00',location:'한국관',boothType:'korea'},requested_note:'개별미팅요청현황 탭 확인',ko_candidates:['인투셀','이뮨온시아','알테오젠','엠브릭스','트리오어'],notes:''},
+  {id:9,us_company:'Lonza',country:'스위스',manager:'Gillian Nam',sched:{date:'06/24',time_start:'11:30',time_end:'12:00',location:'EX-3735d (Korea Pavilion)',boothType:'korea'},requested_note:'개별미팅요청현황 탭 확인',ko_candidates:['인투셀','알테오젠','프로티나','트리오어','앱틀라스'],notes:''},
+  {id:10,us_company:'BioCentury',country:'미국',manager:'Hongjiang Li / Matthew Krebs',sched:{date:'06/23',time_start:'14:30',time_end:'15:00',location:'한국관',boothType:'korea'},requested_note:'East-West Biopharma Summit 협력 논의',ko_candidates:['알테오젠','인투셀','알지노믹스','이뮨온시아'],notes:''},
+  {id:11,us_company:'BioUtah',country:'미국',manager:'Kelvyn Cullimore',sched:{date:'06/23',time_start:'14:00',time_end:'14:30',location:'한국관',boothType:'korea'},requested_note:'현경 과장님이 의사확인 후 리스트 전달 예정',ko_candidates:[],notes:''},
+  {id:12,us_company:'Lovelace Biomedical',country:'미국',manager:'',sched:{date:'06/22',time_start:'15:30',time_end:'16:00',location:'한국관',boothType:'korea'},requested_note:'',ko_candidates:['아이진','알지노믹스','루다큐어','유바이오로직스','뉴로핏'],notes:''},
+  {id:13,us_company:'West Pharmaceutical',country:'미국',manager:'',sched:{date:'06/22',time_start:'15:00',time_end:'15:30',location:'한국관',boothType:'korea'},requested_note:'',ko_candidates:['알테오젠','유바이오로직스','팬젠','이뮨온시아','아이진'],notes:''},
+  {id:14,us_company:'Fred Hutchinson Cancer Ctr',country:'미국',manager:'',sched:{date:'06/24',time_start:'15:30',time_end:'16:00',location:'EX-3735e (Korea Pavilion)',boothType:'korea'},requested_note:'',ko_candidates:[],notes:''},
+  {id:15,us_company:'Acadia Pharmaceuticals',country:'미국',manager:'',sched:{date:'06/25',time_start:'15:00',time_end:'15:30',location:'한국관',boothType:'korea'},requested_note:'신경과·희귀질환 분야 관심',ko_candidates:['루다큐어','아이엔테라퓨틱스','뉴로핏','알지노믹스','아이엠비디엑스'],notes:''},
+  {id:16,us_company:'Sanofi Vaccines',country:'프랑스',manager:'',sched:{date:'06/23',time_start:'10:30',time_end:'11:00',location:'한국관',boothType:'korea'},requested_note:'Olivier Adams 참석',ko_candidates:['유바이오로직스','아이진','디티앤씨알오','지씨씨엘','알지노믹스'],notes:''},
+  {id:17,us_company:'INSUD',country:'스페인',manager:'',sched:{date:'06/24',time_start:'17:00',time_end:'17:30',location:'EX-3735e (Korea Pavilion)',boothType:'korea'},requested_note:'',ko_candidates:[],notes:''},
+  {id:18,us_company:'Cellex Cell Professionals',country:'독일',manager:'',sched:{date:'06/24',time_start:'14:30',time_end:'15:00',location:'EX-3335ac (German Pavilion)',boothType:'partner'},requested_note:'',ko_candidates:['엑셀세라퓨틱스','씨티셀즈','지씨씨엘','엘에스케이글로벌파마서비스','메디아이플러스'],notes:''},
+  {id:19,us_company:'Providence Therapeutics',country:'캐나다',manager:'',sched:{date:'06/24',time_start:'16:30',time_end:'17:00',location:'EX-3735f (Korea Pavilion)',boothType:'korea'},requested_note:'',ko_candidates:[],notes:''},
+  {id:20,us_company:'Glycovax Pharma',country:'캐나다',manager:'',sched:{date:'06/24',time_start:'11:00',time_end:'11:30',location:'EX-3735f (Korea Pavilion)',boothType:'korea'},requested_note:'EyeGene, GC Biopharma, ImmuneOncia 또는 synergy 기업 관심',ko_candidates:[],notes:''},
+  {id:21,us_company:'Intravacc',country:'네덜란드',manager:'',sched:{date:'06/25',time_start:'10:30',time_end:'11:00',location:'EX-4655 (INTRAVACC)',boothType:'partner'},requested_note:'',ko_candidates:['유바이오로직스','아이진','지씨씨엘','디티앤씨알오','팬젠'],notes:''},
+  {id:22,us_company:'Fina Biosolutions',country:'미국',manager:'',sched:{date:'',time_start:'',time_end:'',location:'',boothType:'tbd'},requested_note:'',ko_candidates:[],notes:'스케줄 미정'},
+  {id:23,us_company:'Porsolt',country:'프랑스',manager:'',sched:{date:'06/23',time_start:'13:30',time_end:'14:00',location:'EX-3735f (Korea Pavilion)',boothType:'korea'},requested_note:'',ko_candidates:[],notes:''},
+  {id:24,us_company:'Inotiv',country:'미국',manager:'',sched:{date:'06/22',time_start:'13:30',time_end:'14:00',location:'EX-3735f (Korea Pavilion)',boothType:'korea'},requested_note:'',ko_candidates:[],notes:''},
+  {id:25,us_company:'Chitose Laboratory',country:'일본',manager:'',sched:{date:'06/25',time_start:'12:30',time_end:'13:00',location:'EX-3735f (Korea Pavilion)',boothType:'korea'},requested_note:'',ko_candidates:[],notes:''},
+  {id:26,us_company:'Enzene',country:'인도',manager:'',sched:{date:'06/25',time_start:'9:30',time_end:'10:00',location:'EX-5007c (Enzene)',boothType:'partner'},requested_note:'',ko_candidates:['팬젠','알테오젠','엑셀세라퓨틱스','유바이오로직스','엘에스케이글로벌파마서비스'],notes:''},
+  {id:27,us_company:'Prestige Biopharma',country:'싱가포르',manager:'',sched:{date:'06/25',time_start:'13:30',time_end:'14:00',location:'EX-3517e (Prestige Biopharma)',boothType:'partner'},requested_note:'',ko_candidates:['팬젠','이뮨온시아','지씨씨엘','알테오젠','인투셀'],notes:''},
+  {id:28,us_company:'Chiome Bioscience',country:'일본',manager:'',sched:{date:'',time_start:'',time_end:'',location:'',boothType:'tbd'},requested_note:'',ko_candidates:[],notes:'스케줄 미정'},
+  {id:29,us_company:'Labcorp Biopharma',country:'미국',manager:'',sched:{date:'06/24',time_start:'10:30',time_end:'11:00',location:'EX-3735d (Korea Pavilion)',boothType:'korea'},requested_note:'',ko_candidates:[],notes:''},
+  {id:30,us_company:'Catalent',country:'미국',manager:'',sched:{date:'06/24',time_start:'9:30',time_end:'10:00',location:'EX-3735e (Korea Pavilion)',boothType:'korea'},requested_note:'엑셀세라퓨틱스, 씨티셀즈, 알지노믹스, 아이진 관심',ko_candidates:['엑셀세라퓨틱스','씨티셀즈','알지노믹스','아이진'],notes:'CGT 기업 지원 관심'},
+  {id:31,us_company:'Schrödinger',country:'미국',manager:'',sched:{date:'',time_start:'',time_end:'',location:'',boothType:'tbd'},requested_note:'New Drug Discovery & Development 분야',ko_candidates:[],notes:'스케줄 미정 — 이메일 조율 필요'}
+];
+
+function timeToMin(t){
+  if(!t)return 0;
+  t=t.trim();
+  const pm=t.toLowerCase().includes('pm');
+  const am=t.toLowerCase().includes('am');
+  t=t.replace(/[apm]/gi,'').trim();
+  let [h,m]=[0,0];
+  if(t.includes(':'))[h,m]=t.split(':').map(Number);
+  else h=parseInt(t);
+  if(pm&&h!==12)h+=12;
+  if(am&&h===12)h=0;
+  return h*60+(m||0);
+}
+
+function getKoKey(mid,name){return `${mid}_${name}`;}
+function getKoStatus(mid,name){return koStatus[getKoKey(mid,name)]||'tbd';}
+
+async function setKoStatus(mid,name,val){
+  koStatus[getKoKey(mid,name)]=val;
+  await saveData();
+  updateStats();
+  if(selectedMeetingId===mid){openDetail(mid);}
+}
+
+function getDayMeetings(day){return meetings.filter(m=>m.sched.date===day).sort((a,b)=>timeToMin(a.sched.time_start)-timeToMin(b.sched.time_start));}
+
+const DAYS=['06/22','06/23','06/24','06/25'];
+const DAY_LABELS={'06/22':'6/22 (일)','06/23':'6/23 (월)','06/24':'6/24 (화)','06/25':'6/25 (수)'};
+
+function renderDayTabs(containerId,selected,onclick){
+  const el=document.getElementById(containerId);
+  el.innerHTML=DAYS.map(d=>`<button class="day-tab${d===selected?' active':''}" onclick="${onclick}('${d}')">${DAY_LABELS[d]} <span style="font-size:10px;opacity:0.7">(${getDayMeetings(d).length})</span></button>`).join('');
+}
+
+function renderTimetable(){
+  renderDayTabs('day-tabs',selectedDay,'selectDay');
+  const dayM=getDayMeetings(selectedDay);
+  const tt=document.getElementById('timetable');
+  const minStart=TIME_START;
+
+  let timeCols='';
+  TIMES.forEach(t=>{ timeCols+=`<div class="time-slot">${t}</div>`; });
+
+  let slotLines='';
+  TIMES.forEach(()=>{ slotLines+=`<div class="slot-line"></div>`; });
+
+  let blocks='';
+  dayM.forEach(m=>{
+    const startMin=timeToMin(m.sched.time_start);
+    const endMin=timeToMin(m.sched.time_end);
+    const top=((startMin-minStart)/30)*SLOT_H;
+    const height=Math.max(((endMin-startMin)/30)*SLOT_H,SLOT_H);
+    const cls=m.sched.boothType==='korea'?'mb-korea':m.sched.boothType==='partner'?'mb-partner':'mb-tbd';
+    const acceptedKo=m.ko_candidates.filter(k=>getKoStatus(m.id,k)==='accepted');
+    const allKo=m.ko_candidates;
+    const hasConfirmed=acceptedKo.length>0;
+    const koText=hasConfirmed?'✓ '+acceptedKo.join(', '):allKo.length?allKo.slice(0,3).join(', ')+(allKo.length>3?'…':''):'매칭 없음';
+    blocks+=`<div class="meeting-block ${cls}" style="top:${top}px;height:${height}px" onclick="openDetail(${m.id})">
+      <div class="mb-title">${m.us_company}</div>
+      <div class="mb-ko${hasConfirmed?' has-confirmed':''}">${koText}</div>
+      <div class="mb-time">${m.sched.time_start}–${m.sched.time_end}</div>
+    </div>`;
+  });
+
+  tt.innerHTML=`<div class="time-col">${timeCols}</div><div class="meetings-col" style="min-height:${TIMES.length*SLOT_H}px">${slotLines}${blocks}</div>`;
+  if(selectedMeetingId) openDetail(selectedMeetingId);
+}
+
+function selectDay(d){selectedDay=d;selectedMeetingId=null;document.getElementById('detail-panel').classList.remove('open');renderTimetable();}
+function selectListDay(d){selectedListDay=d;selectedMeetingId=null;document.getElementById('list-detail-panel').classList.remove('open');renderList();}
+
+function openDetail(id){
+  selectedMeetingId=id;
+  const m=meetings.find(x=>x.id===id);if(!m)return;
+  const panel=document.getElementById(currentTab==='list'?'list-detail-panel':'detail-panel');
+  const boothBadge=m.sched.boothType==='korea'?'<span class="booth-badge bb-korea">한국관</span>':m.sched.boothType==='partner'?'<span class="booth-badge bb-partner">상대방 부스</span>':'<span class="booth-badge bb-tbd">미정</span>';
+  const koRows=m.ko_candidates.map((k,i)=>{
+    const st=getKoStatus(m.id,k);
+    return `<div class="ko-row">
+      <span style="font-size:10px;color:var(--text-secondary);min-width:14px">${i+1}</span>
+      <span class="ko-name">${k}</span>
+      <select class="ko-sel ks-${st}" onchange="setKoStatus(${m.id},'${k}',this.value);this.className='ko-sel ks-'+this.value">
+        <option value="tbd"${st==='tbd'?' selected':''}>후보</option>
+        <option value="pending"${st==='pending'?' selected':''}>확인 중</option>
+        <option value="accepted"${st==='accepted'?' selected':''}>확정</option>
+        <option value="declined"${st==='declined'?' selected':''}>거절</option>
+      </select>
+    </div>`;
+  }).join('');
+
+  panel.innerHTML=`
+    <div class="dp-head">
+      <div>
+        <div class="dp-company">${m.us_company} <span style="font-size:11px;font-weight:400;color:var(--text-secondary)">${m.country}</span></div>
+      </div>
+      <button class="dp-close" onclick="closeDetail()">×</button>
+    </div>
+    <div class="dp-meta">
+      ${boothBadge}
+      <span>📅 ${m.sched.date||'날짜 미정'} ${m.sched.time_start||''}${m.sched.time_end?' – '+m.sched.time_end:''}</span>
+      ${m.sched.location?`<span>📍 ${m.sched.location}</span>`:''}
+      ${m.manager?`<span>👤 ${m.manager}</span>`:''}
+    </div>
+    ${m.requested_note?`<div class="req-note">${m.requested_note}</div>`:''}
+    <button class="reschedule-toggle" onclick="toggleEdit(${m.id})">📝 일정/장소 수정</button>
+    <div class="edit-form" id="edit-form-${m.id}">
+      <div class="edit-row">
+        <div><label>날짜 (MM/DD)</label><input type="text" id="ef-date-${m.id}" value="${m.sched.date}" placeholder="06/25"/></div>
+        <div><label>담당자</label><input type="text" id="ef-manager-${m.id}" value="${m.manager||''}"/></div>
+      </div>
+      <div class="edit-row">
+        <div><label>시작 시간 (24h)</label><input type="time" id="ef-start-${m.id}" value="${m.sched.time_start}"/></div>
+        <div><label>종료 시간 (24h)</label><input type="time" id="ef-end-${m.id}" value="${m.sched.time_end}"/></div>
+      </div>
+      <div class="edit-full">
+        <label>장소</label><input type="text" id="ef-loc-${m.id}" value="${m.sched.location||''}"/>
+      </div>
+      <div class="edit-full">
+        <label>부스 구분</label>
+        <select id="ef-booth-${m.id}" style="width:100%;font-size:12px;padding:6px 8px;border:0.5px solid var(--border-secondary);border-radius:var(--radius-md);background:var(--bg-primary);color:var(--text-primary)">
+          <option value="korea"${m.sched.boothType==='korea'?' selected':''}>한국관</option>
+          <option value="partner"${m.sched.boothType==='partner'?' selected':''}>상대방 부스</option>
+          <option value="tbd"${m.sched.boothType==='tbd'?' selected':''}>미정</option>
+        </select>
+      </div>
+      <div class="edit-actions">
+        <button class="edit-btn" onclick="toggleEdit(${m.id})">취소</button>
+        <button class="edit-btn primary" onclick="saveReschedule(${m.id})">저장</button>
+      </div>
+    </div>
+    <div class="sec-label">한국기업 매칭</div>
+    ${m.ko_candidates.length?`<div class="ko-grid">${koRows}</div>`:`<div style="font-size:12px;color:var(--text-secondary)">배정된 한국기업 없음</div>`}
+    <div class="sec-label" style="margin-top:10px">메모</div>
+    <textarea class="notes-box" placeholder="메모..." onchange="saveNote(${m.id},this.value)">${m.notes}</textarea>
+  `;
+  panel.classList.add('open');
+}
+
+function closeDetail(){
+  selectedMeetingId=null;
+  document.getElementById('detail-panel').classList.remove('open');
+  document.getElementById('list-detail-panel').classList.remove('open');
+}
+async function saveNote(id,v){const m=meetings.find(x=>x.id===id);if(m){m.notes=v;await saveData();}}
+
+function toggleEdit(id){
+  const f=document.getElementById(`edit-form-${id}`);
+  if(f) f.classList.toggle('open');
+}
+
+async function saveReschedule(id){
+  const m=meetings.find(x=>x.id===id);if(!m)return;
+  const date=document.getElementById(`ef-date-${id}`).value.trim();
+  const manager=document.getElementById(`ef-manager-${id}`).value.trim();
+  const ts=document.getElementById(`ef-start-${id}`).value;
+  const te=document.getElementById(`ef-end-${id}`).value;
+  const loc=document.getElementById(`ef-loc-${id}`).value.trim();
+  const booth=document.getElementById(`ef-booth-${id}`).value;
+  m.sched.date=date;
+  m.sched.time_start=ts;
+  m.sched.time_end=te;
+  m.sched.location=loc;
+  m.sched.boothType=booth;
+  m.manager=manager;
+  await saveData();
+  renderTimetable();renderList();updateStats();
+  if(currentTab==='korean')renderKorean();
+  openDetail(id);
+}
+
+function renderList(){
+  renderDayTabs('list-day-tabs',selectedListDay,'selectListDay');
+  const dayM=getDayMeetings(selectedListDay);
+  const el=document.getElementById('list-view');
+  if(!dayM.length){el.innerHTML='<div class="empty-msg">이 날 미팅 없음</div>';return;}
+  el.innerHTML=dayM.map(m=>{
+    const accKo=m.ko_candidates.filter(k=>getKoStatus(m.id,k)==='accepted');
+    const hasConfirmed=accKo.length>0;
+    const boothBadge=m.sched.boothType==='korea'?'<span class="booth-badge bb-korea">한국관</span>':m.sched.boothType==='partner'?'<span class="booth-badge bb-partner">상대방 부스</span>':'<span class="booth-badge bb-tbd">미정</span>';
+    return `<div class="lv-card" onclick="openDetail(${m.id})">
+      <span class="lv-time">${m.sched.time_start||'미정'}</span>
+      ${boothBadge}
+      <span class="lv-co">${m.us_company}</span>
+      <span class="lv-ko${hasConfirmed?' has-confirmed':''}">${hasConfirmed?'✓ '+accKo.join(', '):m.ko_candidates.length?m.ko_candidates.slice(0,2).join(', ')+'…':'매칭 없음'}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderKorean(){
+  const koMap={};
+  meetings.forEach(m=>{
+    m.ko_candidates.forEach(k=>{
+      if(!koMap[k])koMap[k]=[];
+      koMap[k].push({m,status:getKoStatus(m.id,k)});
+    });
+  });
+  const keys=Object.keys(koMap).sort();
+  const el=document.getElementById('ko-view');
+  if(!keys.length){el.innerHTML='<div class="empty-msg">매칭된 한국기업 없음</div>';return;}
+  el.innerHTML=keys.map(k=>{
+    const rows=koMap[k].sort((a,b)=>{
+      const da=a.m.sched.date+timeToMin(a.m.sched.time_start);
+      const db=b.m.sched.date+timeToMin(b.m.sched.time_start);
+      return da>db?1:-1;
+    });
+    const accCount=rows.filter(r=>r.status==='accepted').length;
+    return `<div class="ko-card">
+      <div class="ko-card-head">
+        <span class="ko-card-name">${k}</span>
+        <span style="font-size:11px;background:var(--bg-secondary);padding:2px 8px;border-radius:4px;color:var(--text-secondary)">${rows.length}개${accCount?` · <span style="color:#1D9E75">${accCount}확정</span>`:''}</span>
+      </div>
+      ${rows.map(r=>`<div class="ko-meeting-row">
+        <span class="km-time">${r.m.sched.date||'미정'} ${r.m.sched.time_start||''}</span>
+        <span class="km-co">${r.m.us_company} <span style="font-size:10px;color:var(--text-secondary)">${r.m.sched.boothType==='korea'?'한국관':'상대방 부스'}</span></span>
+        <span class="ks-badge ks-${r.status}">${KO_STATUS[r.status]}</span>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+async function parseAndUpdate(){
+  const raw=document.getElementById('paste-input').value.trim();
+  if(!raw){document.getElementById('parse-result').textContent='내용을 붙여넣어 주세요.';return;}
+  const rows=raw.split('\n').filter(r=>r.trim());
+  let updated=0,added=0;
+  rows.forEach(row=>{
+    const cols=row.split('\t').map(s=>s.trim());
+    if(cols.length<2)return;
+    const [company,schedRaw,manager,reqNote,ko1,ko2,ko3,ko4,ko5]=cols;
+    if(!company)return;
+    const koCandidates=[ko1,ko2,ko3,ko4,ko5].filter(Boolean);
+    let date='',ts='',te='',loc='',boothType='tbd';
+    if(schedRaw){
+      const lines=schedRaw.replace(/"/g,'').split('\n').map(s=>s.trim()).filter(Boolean);
+      if(lines[0])date=lines[0].replace(/\/2026/,'').replace(/2026\//,'');
+      if(lines[1]){
+        const parts=lines[1].split('-').map(s=>s.trim());
+        let ts0=parts[0]||'';let te0=parts[1]||'';
+        const startMin=timeToMin(ts0);
+        ts=`${Math.floor(startMin/60)}:${String(startMin%60).padStart(2,'0')}`;
+        const endMin=timeToMin(te0);
+        te=`${Math.floor(endMin/60)}:${String(endMin%60).padStart(2,'0')}`;
+      }
+      if(lines[2]){loc=lines[2];boothType=loc.includes('Korea Pavilion')||loc.includes('한국관')||loc.includes('EX-3735')||loc.includes('EX-3335')||loc.includes('EX-3517')?'korea':loc?'partner':'tbd';}
+    }
+    const existing=meetings.find(m=>m.us_company.toLowerCase().includes(company.toLowerCase().slice(0,8))||company.toLowerCase().includes(m.us_company.toLowerCase().slice(0,8)));
+    if(existing){
+      existing.sched={date,time_start:ts,time_end:te,location:loc,boothType};
+      existing.manager=manager||existing.manager;
+      existing.ko_candidates=koCandidates.length?koCandidates:existing.ko_candidates;
+      existing.requested_note=reqNote||existing.requested_note;
+      updated++;
+    } else {
+      meetings.push({id:Date.now()+Math.random(),us_company:company,country:'',manager:manager||'',sched:{date,time_start:ts,time_end:te,location:loc,boothType},requested_note:reqNote||'',ko_candidates:koCandidates,notes:''});
+      added++;
+    }
+  });
+  document.getElementById('parse-result').textContent=`완료: ${updated}개 업데이트, ${added}개 신규 추가. 저장 중...`;
+  document.getElementById('paste-input').value='';
+  await saveData();
+  document.getElementById('parse-result').textContent=`완료: ${updated}개 업데이트, ${added}개 신규 추가. 모든 팀원에게 반영됨.`;
+  updateStats();renderTimetable();renderList();if(currentTab==='korean')renderKorean();
+}
+
+function csvEscape(v){
+  if(v==null) v='';
+  v=String(v);
+  if(v.includes(',')||v.includes('"')||v.includes('\n')){
+    v='"'+v.replace(/"/g,'""')+'"';
+  }
+  return v;
+}
+
+function exportToCSV(){
+  const headers=['기업명','국가','날짜','시작시간','종료시간','장소','부스구분','담당자','요청사항','메모',
+    '국내1','국내1상태','국내2','국내2상태','국내3','국내3상태','국내4','국내4상태','국내5','국내5상태'];
+  const boothLabel={korea:'한국관',partner:'상대방 부스',tbd:'미정'};
+  const rows=[headers];
+  const sorted=[...meetings].sort((a,b)=>{
+    const da=(a.sched.date||'9999')+String(timeToMin(a.sched.time_start)).padStart(4,'0');
+    const db=(b.sched.date||'9999')+String(timeToMin(b.sched.time_start)).padStart(4,'0');
+    return da<db?-1:da>db?1:0;
+  });
+  sorted.forEach(m=>{
+    const row=[
+      m.us_company, m.country||'', m.sched.date||'', m.sched.time_start||'', m.sched.time_end||'',
+      m.sched.location||'', boothLabel[m.sched.boothType]||'', m.manager||'', m.requested_note||'', m.notes||''
+    ];
+    for(let i=0;i<5;i++){
+      const k=m.ko_candidates[i];
+      if(k){ row.push(k); row.push(KO_STATUS[getKoStatus(m.id,k)]); }
+      else { row.push(''); row.push(''); }
+    }
+    rows.push(row);
+  });
+  const csv='\uFEFF'+rows.map(r=>r.map(csvEscape).join(',')).join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  const today=new Date();
+  const dateStr=`${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+  a.href=url; a.download=`BIO2026_schedule_${dateStr}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function updateStats(){
+  document.getElementById('s-total').textContent=meetings.filter(m=>m.sched.date).length;
+  let acc=0,pend=0,noko=0;
+  meetings.forEach(m=>{
+    const hasAcc=m.ko_candidates.some(k=>getKoStatus(m.id,k)==='accepted');
+    const hasPend=m.ko_candidates.some(k=>getKoStatus(m.id,k)==='pending');
+    if(hasAcc)acc++;else if(hasPend)pend++;
+    if(m.ko_candidates.length===0)noko++;
+  });
+  document.getElementById('s-acc').textContent=acc;
+  document.getElementById('s-pend').textContent=pend;
+  document.getElementById('s-noko').textContent=noko;
+}
+
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['timetable','list','korean','update'][i]===tab));
+  document.getElementById('view-timetable').style.display=tab==='timetable'?'':'none';
+  document.getElementById('view-list').style.display=tab==='list'?'':'none';
+  document.getElementById('view-korean').style.display=tab==='korean'?'':'none';
+  document.getElementById('view-update').style.display=tab==='update'?'':'none';
+  if(tab==='list')renderList();
+  if(tab==='korean')renderKorean();
+}
+
+// ---- Firestore sync ----
+async function saveData(){
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-text');
+  dot.className='sync-dot syncing';txt.textContent='저장 중...';
+  isSaving=true;
+  try{
+    await docRef.set({
+      meetings: JSON.stringify(meetings),
+      koStatus: JSON.stringify(koStatus),
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    dot.className='sync-dot';txt.textContent='동기화됨';
+  }catch(e){
+    dot.className='sync-dot error';txt.textContent='저장 실패: '+e.message;
+    console.error('Save error:',e);
+  }
+  isSaving=false;
+}
+
+function applyRemoteData(data){
+  try{
+    meetings = data.meetings ? JSON.parse(data.meetings) : JSON.parse(JSON.stringify(DEFAULT_MEETINGS));
+  }catch(e){ meetings = JSON.parse(JSON.stringify(DEFAULT_MEETINGS)); }
+  try{
+    koStatus = data.koStatus ? JSON.parse(data.koStatus) : {};
+  }catch(e){ koStatus = {}; }
+  renderTimetable();
+  updateStats();
+  if(currentTab==='list')renderList();
+  if(currentTab==='korean')renderKorean();
+}
+
+// Real-time listener: any team member's update reflects here automatically
+docRef.onSnapshot((snap)=>{
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-text');
+  // Don't disrupt UI if we're actively typing in a textarea
+  const activeIsTextarea = document.activeElement && document.activeElement.tagName==='TEXTAREA';
+  if(!snap.exists){
+    // first run: seed with defaults
+    meetings = JSON.parse(JSON.stringify(DEFAULT_MEETINGS));
+    koStatus = {};
+    docRef.set({meetings:JSON.stringify(meetings), koStatus:JSON.stringify(koStatus), updatedAt: firebase.firestore.FieldValue.serverTimestamp()})
+      .then(()=>{ dot.className='sync-dot';txt.textContent='동기화됨'; renderTimetable(); updateStats(); });
+    return;
+  }
+  const data=snap.data();
+  if(!activeIsTextarea){
+    applyRemoteData(data);
+  }
+  dot.className='sync-dot';txt.textContent='동기화됨';
+},(err)=>{
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-text');
+  dot.className='sync-dot error';txt.textContent='연결 실패: '+err.message;
+  console.error('Firestore error:',err);
+  // fallback to defaults so the page is still usable
+  meetings = JSON.parse(JSON.stringify(DEFAULT_MEETINGS));
+  koStatus = {};
+  renderTimetable();
+  updateStats();
+});
+</script>
+</body>
+</html>
