@@ -118,7 +118,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="stat"><div class="stat-label">총 미팅</div><div class="stat-val" id="s-total">0</div></div>
   <div class="stat"><div class="stat-label">한국기업 확정</div><div class="stat-val" id="s-acc" style="color:#1D9E75">0</div></div>
   <div class="stat"><div class="stat-label">확인 중</div><div class="stat-val" id="s-pend" style="color:#BA7517">0</div></div>
-  <div class="stat"><div class="stat-label">매칭 없음</div><div class="stat-val" id="s-noko" style="color:#D85A30">0</div></div>
+  <div class="stat"><div class="stat-label">코트라 자체미팅</div><div class="stat-val" id="s-noko" style="color:#6F6E69">0</div></div>
 </div>
 <div class="tab-bar">
   <button class="tab active" onclick="switchTab('timetable')">시간표</button>
@@ -149,7 +149,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <div id="view-update" style="display:none">
-  <div class="share-note">이 화면에서 데이터를 업데이트하면 이 링크를 가진 모든 팀원에게 실시간으로 반영됩니다. 매일 저녁 구글 시트에서 아래 컬럼을 복사해 붙여넣으세요.</div>
+  <div class="share-note">이 화면에서 데이터를 업데이트하면 이 링크를 가진 모든 팀원에게 실시간으로 반영됩니다.</div>
+
+  <div class="sec-label">엑셀 파일로 업데이트 (권장)</div>
+  <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;line-height:1.6">
+    <span style="font-family:monospace;font-size:11px;background:var(--bg-secondary);padding:1px 5px;border-radius:4px">파트너링(system) 미팅 요청 현황</span> 시트만 있어도 됩니다 (전체 마스터 파일을 그대로 올려도 OK). 기업명/스케줄/담당자/국내기업 후보를 자동으로 읽어 반영합니다.
+  </div>
+  <input type="file" id="excel-file" accept=".xlsx,.xls" onchange="handleExcelUpload(event)" style="font-size:12px"/>
+  <div id="excel-result"></div>
+
+  <div class="sec-label" style="margin-top:20px">시트 복붙으로 업데이트 (보조)</div>
   <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;line-height:1.6">
     순서: <span style="font-family:monospace;font-size:11px;background:var(--bg-secondary);padding:2px 6px;border-radius:4px">기업명 · 미팅스케줄 · 담당자 · 찾는국내기업 · 국내1 · 국내2 · 국내3 · 국내4 · 국내5</span>
   </div>
@@ -163,6 +172,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 </div>
 
+<!-- SheetJS (CDN, no build step needed) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase (CDN, no build step needed) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -282,7 +293,7 @@ function renderTimetable(){
     const acceptedKo=m.ko_candidates.filter(k=>getKoStatus(m.id,k)==='accepted');
     const allKo=m.ko_candidates;
     const hasConfirmed=acceptedKo.length>0;
-    const koText=hasConfirmed?'✓ '+acceptedKo.join(', '):allKo.length?allKo.slice(0,3).join(', ')+(allKo.length>3?'…':''):'매칭 없음';
+    const koText=hasConfirmed?'✓ '+acceptedKo.join(', '):allKo.length?allKo.slice(0,3).join(', ')+(allKo.length>3?'…':''):'🇰🇷 코트라 자체미팅';
     blocks+=`<div class="meeting-block ${cls}" style="top:${top}px;height:${height}px" onclick="openDetail(${m.id})">
       <div class="mb-title">${m.us_company}</div>
       <div class="mb-ko${hasConfirmed?' has-confirmed':''}">${koText}</div>
@@ -409,7 +420,7 @@ function renderList(){
       <span class="lv-time">${m.sched.time_start||'미정'}</span>
       ${boothBadge}
       <span class="lv-co">${m.us_company}</span>
-      <span class="lv-ko${hasConfirmed?' has-confirmed':''}">${hasConfirmed?'✓ '+accKo.join(', '):m.ko_candidates.length?m.ko_candidates.slice(0,2).join(', ')+'…':'매칭 없음'}</span>
+      <span class="lv-ko${hasConfirmed?' has-confirmed':''}">${hasConfirmed?'✓ '+accKo.join(', '):m.ko_candidates.length?m.ko_candidates.slice(0,2).join(', ')+'…':'🇰🇷 코트라 자체미팅'}</span>
     </div>`;
   }).join('');
 }
@@ -450,43 +461,84 @@ async function parseAndUpdate(){
   const raw=document.getElementById('paste-input').value.trim();
   if(!raw){document.getElementById('parse-result').textContent='내용을 붙여넣어 주세요.';return;}
   const rows=raw.split('\n').filter(r=>r.trim());
-  let updated=0,added=0;
+  let updated=0,added=0,timeOnly=0,notFound=[];
   rows.forEach(row=>{
     const cols=row.split('\t').map(s=>s.trim());
     if(cols.length<2)return;
     const [company,schedRaw,manager,reqNote,ko1,ko2,ko3,ko4,ko5]=cols;
     if(!company)return;
     const koCandidates=[ko1,ko2,ko3,ko4,ko5].filter(Boolean);
-    let date='',ts='',te='',loc='',boothType='tbd';
+
+    const existing=meetings.find(m=>normEn(m.us_company).includes(normEn(company))||normEn(company).includes(normEn(m.us_company)));
+
+    if(!existing && !schedRaw){ notFound.push(company); return; }
+
     if(schedRaw){
       const lines=schedRaw.replace(/"/g,'').split('\n').map(s=>s.trim()).filter(Boolean);
-      if(lines[0])date=lines[0].replace(/\/2026/,'').replace(/2026\//,'');
-      if(lines[1]){
-        const parts=lines[1].split('-').map(s=>s.trim());
-        let ts0=parts[0]||'';let te0=parts[1]||'';
-        const startMin=timeToMin(ts0);
+      // Detect "time-only" input: a single line that looks like a time range, no date pattern
+      const looksLikeTimeRange = (s)=> /\d{1,2}(:\d{2})?\s*(am|pm)?\s*-\s*\d{1,2}(:\d{2})?\s*(am|pm)?/i.test(s) && !/\d{1,2}\/\d{1,2}/.test(s) && !/\d{4}-\d{2}-\d{2}/.test(s);
+
+      if(lines.length===1 && looksLikeTimeRange(lines[0]) && existing){
+        // Time-only update: keep existing date & location
+        const parts=lines[0].split('-').map(s=>s.trim());
+        const startMin=timeToMin(parts[0]||'');
+        const endMin=timeToMin(parts[1]||'');
+        existing.sched.time_start=`${Math.floor(startMin/60)}:${String(startMin%60).padStart(2,'0')}`;
+        existing.sched.time_end=`${Math.floor(endMin/60)}:${String(endMin%60).padStart(2,'0')}`;
+        existing.manager=manager||existing.manager;
+        if(koCandidates.length) existing.ko_candidates=koCandidates;
+        existing.requested_note=reqNote||existing.requested_note;
+        timeOnly++;
+        return;
+      }
+
+      // Full schedule parse: date / time range / location
+      let date='',ts='',te='',loc='',boothType='tbd';
+      if(lines[0]&&(/\d{1,2}\/\d{1,2}/.test(lines[0])||/\d{4}-\d{2}-\d{2}/.test(lines[0]))){
+        date=lines[0].replace(/\/2026/,'').replace(/2026\//,'').match(/\d{1,2}\/\d{1,2}|\d{2}-\d{2}/)?.[0]?.replace('-','/')||lines[0];
+      }
+      const timeLineIdx = date ? 1 : 0;
+      if(lines[timeLineIdx]&&looksLikeTimeRange(lines[timeLineIdx])){
+        const parts=lines[timeLineIdx].split('-').map(s=>s.trim());
+        const startMin=timeToMin(parts[0]||'');
+        const endMin=timeToMin(parts[1]||'');
         ts=`${Math.floor(startMin/60)}:${String(startMin%60).padStart(2,'0')}`;
-        const endMin=timeToMin(te0);
         te=`${Math.floor(endMin/60)}:${String(endMin%60).padStart(2,'0')}`;
       }
-      if(lines[2]){loc=lines[2];boothType=loc.includes('Korea Pavilion')||loc.includes('한국관')||loc.includes('EX-3735')||loc.includes('EX-3335')||loc.includes('EX-3517')?'korea':loc?'partner':'tbd';}
-    }
-    const existing=meetings.find(m=>m.us_company.toLowerCase().includes(company.toLowerCase().slice(0,8))||company.toLowerCase().includes(m.us_company.toLowerCase().slice(0,8)));
-    if(existing){
-      existing.sched={date,time_start:ts,time_end:te,location:loc,boothType};
+      if(lines[timeLineIdx+1]){
+        loc=lines[timeLineIdx+1];
+        boothType=loc.includes('Korea Pavilion')||loc.includes('한국관')||loc.includes('EX-3735')||loc.includes('EX-3335')||loc.includes('EX-3517')?'korea':loc?'partner':'tbd';
+      }
+
+      if(existing){
+        if(date) existing.sched.date=date;
+        if(ts) existing.sched.time_start=ts;
+        if(te) existing.sched.time_end=te;
+        if(loc){ existing.sched.location=loc; existing.sched.boothType=boothType; }
+        existing.manager=manager||existing.manager;
+        if(koCandidates.length) existing.ko_candidates=koCandidates;
+        existing.requested_note=reqNote||existing.requested_note;
+        updated++;
+      } else {
+        meetings.push({id:Date.now()+Math.random(),us_company:company,country:'',manager:manager||'',sched:{date,time_start:ts,time_end:te,location:loc,boothType},requested_note:reqNote||'',ko_candidates:koCandidates,notes:''});
+        added++;
+      }
+    } else if(existing){
+      // No schedule given, just update manager/notes/candidates if present
       existing.manager=manager||existing.manager;
-      existing.ko_candidates=koCandidates.length?koCandidates:existing.ko_candidates;
+      if(koCandidates.length) existing.ko_candidates=koCandidates;
       existing.requested_note=reqNote||existing.requested_note;
       updated++;
-    } else {
-      meetings.push({id:Date.now()+Math.random(),us_company:company,country:'',manager:manager||'',sched:{date,time_start:ts,time_end:te,location:loc,boothType},requested_note:reqNote||'',ko_candidates:koCandidates,notes:''});
-      added++;
     }
   });
-  document.getElementById('parse-result').textContent=`완료: ${updated}개 업데이트, ${added}개 신규 추가. 저장 중...`;
+  let msg=`완료: ${updated}개 업데이트`;
+  if(timeOnly) msg+=`, ${timeOnly}개 시간만 변경`;
+  if(added) msg+=`, ${added}개 신규 추가`;
+  if(notFound.length) msg+=`. 매칭 안 됨: ${notFound.join(', ')}`;
+  document.getElementById('parse-result').textContent=msg+' — 저장 중...';
   document.getElementById('paste-input').value='';
   await saveData();
-  document.getElementById('parse-result').textContent=`완료: ${updated}개 업데이트, ${added}개 신규 추가. 모든 팀원에게 반영됨.`;
+  document.getElementById('parse-result').textContent=msg+'. 모든 팀원에게 반영됨.';
   updateStats();renderTimetable();renderList();if(currentTab==='korean')renderKorean();
 }
 
@@ -557,7 +609,224 @@ function switchTab(tab){
   if(tab==='korean')renderKorean();
 }
 
-// ---- Firestore sync ----
+// ---- Excel upload & merge ----
+function normKo(s){
+  if(!s) return '';
+  s=String(s);
+  s=s.replace(/\(주\)|㈜|주식회사|\s/g,'');
+  s=s.replace(/\([^)]*\)/g,'');
+  return s.trim();
+}
+function normEn(s){
+  if(!s) return '';
+  s=String(s).toLowerCase();
+  s=s.replace(/\([^)]*\)/g,'');
+  s=s.replace(/[.,]/g,'');
+  s=s.replace(/\b(inc|co|ltd|corp|corporation|llc|limited)\b/g,'');
+  s=s.replace(/\s+/g,' ').trim();
+  return s;
+}
+function excelTimeToHHMM(v){
+  if(v==null||v==='') return '';
+  if(typeof v==='number'){
+    let totalMin=Math.round(v*24*60);
+    let h=Math.floor(totalMin/60), m=totalMin%60;
+    return `${h}:${String(m).padStart(2,'0')}`;
+  }
+  return '';
+}
+function parseLocFromSchedText(schedText){
+  const lines=String(schedText).split('\n').map(l=>l.trim()).filter(Boolean);
+  const loc=lines[2]||'';
+  let booth='tbd';
+  if(loc.toLowerCase().includes('korea pavilion')||loc.includes('한국관')) booth='korea';
+  else if(loc) booth='partner';
+  return [loc,booth];
+}
+
+function buildMeetingsFromSheet1Only(rows1){
+  const meetings=[]; const koStatus={}; let mid=1;
+  for(let r=1;r<rows1.length;r++){
+    const row=rows1[r];
+    if(row[7]!=='수락') continue;
+    const name=row[2]; if(!name) continue;
+    const koCands=[];
+    for(let c=11;c<=15;c++){
+      const v=row[c];
+      if(v&&typeof v==='string'&&v.trim()){
+        const cleaned=normKo(v);
+        if(cleaned) koCands.push(cleaned);
+      }
+    }
+    const schedText=String(row[9]||'');
+    const lines=schedText.split('\n').map(s=>s.trim()).filter(Boolean);
+    let date='',ts='',te='',loc='',boothType='tbd';
+    if(lines[0]){
+      const m=lines[0].match(/(\d{1,2})\/(\d{1,2})/);
+      if(m) date=`${m[1].padStart(2,'0')}/${m[2].padStart(2,'0')}`;
+    }
+    if(lines[1]){
+      const parts=lines[1].split('-').map(s=>s.trim());
+      const startMin=timeToMin(parts[0]||''); const endMin=timeToMin(parts[1]||'');
+      ts=`${Math.floor(startMin/60)}:${String(startMin%60).padStart(2,'0')}`;
+      te=`${Math.floor(endMin/60)}:${String(endMin%60).padStart(2,'0')}`;
+    }
+    if(lines[2]){
+      loc=lines[2];
+      boothType=(loc.toLowerCase().includes('korea pavilion')||loc.includes('한국관')||loc.includes('EX-3735')||loc.includes('EX-3335')||loc.includes('EX-3517'))?'korea':'partner';
+    }
+    meetings.push({
+      id:mid, us_company:String(name).trim(), country:String(row[3]||'').trim(),
+      manager:String(row[8]||'').trim(),
+      sched:{date,time_start:ts,time_end:te,location:loc,boothType},
+      requested_note:String(row[10]||'').trim(),
+      ko_candidates:koCands, notes:''
+    });
+    mid++;
+  }
+  return {meetings,koStatus};
+}
+
+function mergeFromWorkbook(wb){
+  const SHEET1='파트너링(system) 미팅 요청 현황', SHEET2='국내기업 매칭', SHEET3='(최종)공동상담장';
+  if(!wb.Sheets[SHEET1]){
+    throw new Error('"파트너링(system) 미팅 요청 현황" 시트를 찾을 수 없습니다.');
+  }
+  const rows1=XLSX.utils.sheet_to_json(wb.Sheets[SHEET1],{header:1,defval:null});
+
+  if(!wb.Sheets[SHEET3]){
+    // Sheet1-only mode: schedule comes from the embedded "미팅 스케줄 (confirmed)" text
+    return buildMeetingsFromSheet1Only(rows1);
+  }
+
+  // EN -> KR company name map from sheet2 (optional)
+  const en2kr={};
+  if(wb.Sheets[SHEET2]){
+    const rows2=XLSX.utils.sheet_to_json(wb.Sheets[SHEET2],{header:1,defval:null});
+    for(let r=2;r<rows2.length;r++){
+      const kr=rows2[r][3], en=rows2[r][4];
+      if(kr&&en) en2kr[normEn(en)]=normKo(kr);
+    }
+  }
+
+  // Sheet1: accepted companies -> manager, note, candidates, sched text
+  const sheet1Data={};
+  for(let r=1;r<rows1.length;r++){
+    const row=rows1[r];
+    if(row[7]!=='수락') continue;
+    const name=row[2]; if(!name) continue;
+    const koCands=[];
+    for(let c=11;c<=15;c++){
+      const v=row[c];
+      if(v&&typeof v==='string'&&v.trim()){
+        const cleaned=normKo(v);
+        if(cleaned) koCands.push(cleaned);
+      }
+    }
+    sheet1Data[normEn(name)]={
+      name:String(name).trim(), country:String(row[3]||'').trim(),
+      manager:String(row[8]||'').trim(), note:String(row[10]||'').trim(),
+      ko_candidates:koCands, sched_text:String(row[9]||'')
+    };
+  }
+
+  // Sheet3: master time grid
+  const rows3=XLSX.utils.sheet_to_json(wb.Sheets[SHEET3],{header:1,defval:null});
+  let currentDate='';
+  const meetings=[]; const koStatus={}; let mid=1;
+  for(let r=3;r<rows3.length;r++){
+    const row=rows3[r];
+    const dateCell=row[1];
+    if(dateCell&&typeof dateCell==='string'){
+      const m=dateCell.match(/(\d{4})-(\d{2})-(\d{2})/);
+      if(m) currentDate=`${m[2]}/${m[3]}`;
+    }
+    const name=row[4];
+    if(!name) continue;
+    const startT=row[2], endT=row[3];
+    const confirmedKoEn=row[6], tentativeKoEn=row[7];
+    const loc3=row[8];
+
+    const key=normEn(name);
+    const s1=sheet1Data[key]||{};
+    let koCandidates=(s1.ko_candidates||[]).slice();
+
+    let loc='', booth='tbd';
+    if(loc3&&String(loc3).trim()){
+      loc=String(loc3).trim();
+      booth=(loc.toLowerCase().includes('korea pavilion')||loc.includes('한국관'))?'korea':'partner';
+    } else if(s1.sched_text){
+      [loc,booth]=parseLocFromSchedText(s1.sched_text);
+    }
+
+    function mapKoEn(enName){
+      if(!enName) return null;
+      const kr=en2kr[normEn(enName)];
+      return kr||normKo(enName);
+    }
+    const confirmedKr=mapKoEn(confirmedKoEn);
+    const tentativeKr=mapKoEn(tentativeKoEn);
+    if(confirmedKr&&!koCandidates.includes(confirmedKr)) koCandidates.unshift(confirmedKr);
+    if(tentativeKr&&!koCandidates.includes(tentativeKr)) koCandidates.push(tentativeKr);
+
+    meetings.push({
+      id:mid,
+      us_company:String(name).trim(),
+      country:s1.country||'',
+      manager:s1.manager||'',
+      sched:{date:currentDate,time_start:excelTimeToHHMM(startT),time_end:excelTimeToHHMM(endT),location:loc,boothType:booth},
+      requested_note:s1.note||'',
+      ko_candidates:koCandidates,
+      notes:''
+    });
+    if(confirmedKr) koStatus[`${mid}_${confirmedKr}`]='accepted';
+    mid++;
+  }
+  return {meetings,koStatus};
+}
+
+// Merge new excel-derived data with existing data: keep notes & manually-set ko statuses
+function mergeWithExisting(newMeetings,newKoStatus){
+  const merged=JSON.parse(JSON.stringify(newKoStatus));
+  newMeetings.forEach(nm=>{
+    const old=meetings.find(om=>normEn(om.us_company)===normEn(nm.us_company));
+    if(old){
+      nm.notes=old.notes||'';
+      nm.ko_candidates.forEach(k=>{
+        const newKey=`${nm.id}_${k}`;
+        if(merged[newKey]==='accepted') return; // excel-confirmed wins
+        const oldKey=`${old.id}_${k}`;
+        if(koStatus[oldKey]) merged[newKey]=koStatus[oldKey];
+      });
+    }
+  });
+  return merged;
+}
+
+async function handleExcelUpload(ev){
+  const file=ev.target.files[0];
+  if(!file) return;
+  const resultEl=document.getElementById('excel-result');
+  resultEl.innerHTML='<div class="parse-result">읽는 중...</div>';
+  try{
+    const data=await file.arrayBuffer();
+    const wb=XLSX.read(data,{type:'array'});
+    const {meetings:newMeetings,koStatus:newKoStatus}=mergeFromWorkbook(wb);
+    const mergedKoStatus=mergeWithExisting(newMeetings,newKoStatus);
+    meetings=newMeetings;
+    koStatus=mergedKoStatus;
+    await saveData();
+    updateStats();renderTimetable();renderList();if(currentTab==='korean')renderKorean();
+    const confirmedCount=Object.values(koStatus).filter(v=>v==='accepted').length;
+    resultEl.innerHTML=`<div class="parse-result">완료: 미팅 ${meetings.length}개 반영, 확정 ${confirmedCount}건. 모든 팀원에게 동기화됨.</div>`;
+  }catch(e){
+    resultEl.innerHTML=`<div class="parse-result" style="color:#A32D2D">오류: ${e.message}</div>`;
+    console.error(e);
+  }
+  ev.target.value='';
+}
+
+
 async function saveData(){
   const dot=document.getElementById('sync-dot');
   const txt=document.getElementById('sync-text');
